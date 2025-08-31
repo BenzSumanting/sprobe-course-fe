@@ -5,53 +5,55 @@ import { parseCookies } from "nookies";
 import { useRouter } from "next/navigation";
 
 export default function AddCourse({ onCourseAdded }) {
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [credits, setCredits] = useState("");
+  const [form, setForm] = useState({ title: "", description: "", credits: "" });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
   const router = useRouter();
+
+  const handleChange = (e) => {
+    setForm({ ...form, [e.target.name]: e.target.value });
+    setError(""); // clear error when typing
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    // simple validation
+    if (form.title.trim().length < 3) {
+      setError("Title must be at least 3 characters.");
+      return;
+    }
+    if (Number(form.credits) < 1) {
+      setError("Credits must be at least 1.");
+      return;
+    }
+
     setLoading(true);
     setError("");
+    setSuccess("");
 
     try {
       const cookies = parseCookies();
       const token = cookies.auth_token;
 
-      const formData = new FormData();
-      formData.append("title", title);
-      formData.append("description", description);
-      formData.append("credits", credits);
-
       const res = await axios.post(
         "http://127.0.0.1:8000/api/course",
-        formData,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
+        form,
+        { headers: { Authorization: `Bearer ${token}` } }
       );
 
-      console.log("✅ Course added:", res.data);
-
-      if (onCourseAdded) onCourseAdded(res.data);
+      setSuccess("✅ Course added successfully!");
+      if (onCourseAdded) onCourseAdded(res.data.data);
 
       // Reset form
-      setTitle("");
-      setDescription("");
-      setCredits("");
+      setForm({ title: "", description: "", credits: "" });
 
-      router.push("/dashboard");
+      // Redirect after short delay
+      setTimeout(() => router.push("/dashboard"), 1200);
     } catch (err) {
       console.error("❌ Error adding course:", err.response?.data || err.message);
-      setError(
-        err.response?.data?.message ||
-          "Failed to add course. Check console for details."
-      );
+      setError(err.response?.data?.message || "Failed to add course.");
     } finally {
       setLoading(false);
     }
@@ -59,45 +61,65 @@ export default function AddCourse({ onCourseAdded }) {
 
   return (
     <div className="container mt-4">
-      <h2>Add Course</h2>
-      {error && <p className="text-danger">{error}</p>}
-      <form onSubmit={handleSubmit}>
+      <h3 className="mb-3">➕ Add New Course</h3>
+
+      {error && <div className="alert alert-danger">{error}</div>}
+      {success && <div className="alert alert-success">{success}</div>}
+
+      <form onSubmit={handleSubmit} className="card p-4 shadow-sm">
         <div className="mb-3">
-          <label className="form-label">Title</label>
+          <label className="form-label fw-bold">Title</label>
           <input
             type="text"
+            name="title"
             className="form-control"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
+            value={form.title}
+            onChange={handleChange}
+            disabled={loading}
             required
           />
         </div>
 
         <div className="mb-3">
-          <label className="form-label">Description</label>
+          <label className="form-label fw-bold">Description</label>
           <textarea
+            name="description"
             className="form-control"
             rows="3"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
+            value={form.description}
+            onChange={handleChange}
+            disabled={loading}
             required
           ></textarea>
         </div>
 
         <div className="mb-3">
-          <label className="form-label">Credits</label>
+          <label className="form-label fw-bold">Credits</label>
           <input
             type="number"
+            name="credits"
             className="form-control"
-            value={credits}
-            onChange={(e) => setCredits(e.target.value)}
+            min="1"
+            value={form.credits}
+            onChange={handleChange}
+            disabled={loading}
             required
           />
         </div>
 
-        <button type="submit" className="btn btn-primary" disabled={loading}>
-          {loading ? "Saving..." : "Add Course"}
-        </button>
+        <div className="d-flex justify-content-end gap-2">
+          <button
+            type="button"
+            className="btn btn-outline-secondary"
+            onClick={() => router.push("/dashboard")}
+            disabled={loading}
+          >
+            ✖ Cancel
+          </button>
+          <button type="submit" className="btn btn-primary" disabled={loading}>
+            {loading ? "⏳ Saving..." : "💾 Add Course"}
+          </button>
+        </div>
       </form>
     </div>
   );

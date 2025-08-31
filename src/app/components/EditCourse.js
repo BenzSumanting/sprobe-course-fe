@@ -18,6 +18,10 @@ export default function EditCourse({ courseId }) {
   const [modalMode, setModalMode] = useState("add"); // "add" or "edit"
   const [editId, setEditId] = useState(null);
 
+  // confirm modal state
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState(null); // { type: "course"|"assignment", id }
+
   // assignment form states
   const [assignmentTitle, setAssignmentTitle] = useState("");
   const [assignmentDescription, setAssignmentDescription] = useState("");
@@ -69,29 +73,46 @@ export default function EditCourse({ courseId }) {
 
       router.push("/dashboard");
     } catch (err) {
-      console.error("❌ Error updating course:", err.response?.data || err.message);
+      console.error(
+        "❌ Error updating course:",
+        err.response?.data || err.message
+      );
       setError(err.response?.data?.message || "Failed to update course.");
     } finally {
       setLoading(false);
     }
   };
 
-  // Delete course
-  const handleDeleteCourse = async () => {
-    if (!confirm("Are you sure you want to delete this course?")) return;
+  // confirm delete
+  const confirmDelete = (type, id = null) => {
+    setDeleteTarget({ type, id });
+    setShowConfirm(true);
+  };
 
+  // execute delete
+  const handleConfirmDelete = async () => {
     try {
       const cookies = parseCookies();
       const token = cookies.auth_token;
 
-      await axios.delete(`http://127.0.0.1:8000/api/course/${courseId}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      router.push("/dashboard");
+      if (deleteTarget.type === "course") {
+        await axios.delete(`http://127.0.0.1:8000/api/course/${courseId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        router.push("/dashboard");
+      } else if (deleteTarget.type === "assignment") {
+        await axios.delete(
+          `http://127.0.0.1:8000/api/assignment/${deleteTarget.id}`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        setAssignments(assignments.filter((a) => a.id !== deleteTarget.id));
+      }
     } catch (err) {
-      console.error("❌ Error deleting course:", err.response?.data || err.message);
-      setError("Failed to delete course.");
+      console.error("❌ Error deleting:", err.response?.data || err.message);
+      setError("Failed to delete.");
+    } finally {
+      setShowConfirm(false);
+      setDeleteTarget(null);
     }
   };
 
@@ -142,7 +163,9 @@ export default function EditCourse({ courseId }) {
           payload,
           { headers: { Authorization: `Bearer ${token}` } }
         );
-        setAssignments(assignments.map((a) => (a.id === editId ? res.data.data : a)));
+        setAssignments(
+          assignments.map((a) => (a.id === editId ? res.data.data : a))
+        );
       }
 
       setAssignmentTitle("");
@@ -151,27 +174,11 @@ export default function EditCourse({ courseId }) {
       setEditId(null);
       setShowModal(false);
     } catch (err) {
-      console.error("❌ Error saving assignment:", err.response?.data || err.message);
+      console.error(
+        "❌ Error saving assignment:",
+        err.response?.data || err.message
+      );
       setError("Failed to save assignment.");
-    }
-  };
-
-  // Delete Assignment
-  const handleDeleteAssignment = async (id) => {
-    if (!confirm("Are you sure you want to delete this assignment?")) return;
-
-    try {
-      const cookies = parseCookies();
-      const token = cookies.auth_token;
-
-      await axios.delete(`http://127.0.0.1:8000/api/assignment/${id}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      setAssignments(assignments.filter((a) => a.id !== id));
-    } catch (err) {
-      console.error("❌ Error deleting assignment:", err.response?.data || err.message);
-      setError("Failed to delete assignment.");
     }
   };
 
@@ -181,16 +188,33 @@ export default function EditCourse({ courseId }) {
       <div className="d-flex justify-content-between align-items-center mb-4">
         <h2 className="mb-0">📘 Edit Course</h2>
         <div className="btn-group">
-          <button type="submit" form="courseForm" className="btn btn-primary" disabled={loading}>
+          <button
+            type="submit"
+            form="courseForm"
+            className="btn btn-primary"
+            disabled={loading}
+          >
             {loading ? "Saving..." : "💾 Update"}
           </button>
-          <button type="button" className="btn btn-danger" onClick={handleDeleteCourse}>
+          <button
+            type="button"
+            className="btn btn-danger"
+            onClick={() => confirmDelete("course")}
+          >
             🗑 Delete
           </button>
-          <button type="button" className="btn btn-success" onClick={openAddModal}>
+          <button
+            type="button"
+            className="btn btn-success"
+            onClick={openAddModal}
+          >
             ➕ Add Assignment
           </button>
-          <button type="button" className="btn btn-outline-secondary" onClick={() => router.push("/dashboard")}>
+          <button
+            type="button"
+            className="btn btn-outline-secondary"
+            onClick={() => router.push("/dashboard")}
+          >
             ✖ Close
           </button>
         </div>
@@ -201,7 +225,11 @@ export default function EditCourse({ courseId }) {
       <div className="row">
         {/* ===== Course Details Form ===== */}
         <div className="col-md-6 mb-4">
-          <form id="courseForm" onSubmit={handleCourseSubmit} className="card shadow-sm p-4">
+          <form
+            id="courseForm"
+            onSubmit={handleCourseSubmit}
+            className="card shadow-sm p-4"
+          >
             <h5 className="mb-3">Course Details</h5>
 
             <div className="mb-3">
@@ -246,25 +274,40 @@ export default function EditCourse({ courseId }) {
 
             <ul className="list-group">
               {assignments.map((a) => (
-                <li key={a.id} className="list-group-item d-flex justify-content-between align-items-center">
+                <li
+                  key={a.id}
+                  className="list-group-item d-flex justify-content-between align-items-center"
+                >
                   <div>
                     <strong>{a.title}</strong> <br />
                     <small className="text-muted">{a.description}</small> <br />
-                    <span className="badge bg-light text-dark me-2">📅 Created: {a.created_at}</span>
-                    <span className="badge bg-warning text-dark">⏰ Due: {a.due_date}</span>
+                    <span className="badge bg-light text-dark me-2">
+                      📅 Created: {a.created_at}
+                    </span>
+                    <span className="badge bg-warning text-dark">
+                      ⏰ Due: {a.due_date}
+                    </span>
                   </div>
                   <div className="d-flex gap-2">
-                    <button className="btn btn-sm btn-warning" onClick={() => openEditModal(a)}>
+                    <button
+                      className="btn btn-sm btn-warning"
+                      onClick={() => openEditModal(a)}
+                    >
                       Edit
                     </button>
-                    <button className="btn btn-sm btn-danger" onClick={() => handleDeleteAssignment(a.id)}>
+                    <button
+                      className="btn btn-sm btn-danger"
+                      onClick={() => confirmDelete("assignment", a.id)}
+                    >
                       Delete
                     </button>
                   </div>
                 </li>
               ))}
               {assignments.length === 0 && (
-                <li className="list-group-item text-muted">No assignments yet.</li>
+                <li className="list-group-item text-muted">
+                  No assignments yet.
+                </li>
               )}
             </ul>
           </div>
@@ -273,15 +316,25 @@ export default function EditCourse({ courseId }) {
 
       {/* ===== Modal (Add / Edit Assignment) ===== */}
       {showModal && (
-        <div className="modal fade show d-block" tabIndex="-1" style={{ backgroundColor: "rgba(0,0,0,0.5)" }}>
+        <div
+          className="modal fade show d-block"
+          tabIndex="-1"
+          style={{ backgroundColor: "rgba(0,0,0,0.5)" }}
+        >
           <div className="modal-dialog modal-dialog-centered">
             <div className="modal-content">
               <form onSubmit={handleAssignmentSubmit}>
                 <div className="modal-header">
                   <h5 className="modal-title">
-                    {modalMode === "add" ? "➕ Add Assignment" : "✏️ Edit Assignment"}
+                    {modalMode === "add"
+                      ? "➕ Add Assignment"
+                      : "✏️ Edit Assignment"}
                   </h5>
-                  <button type="button" className="btn-close" onClick={() => setShowModal(false)}></button>
+                  <button
+                    type="button"
+                    className="btn-close"
+                    onClick={() => setShowModal(false)}
+                  ></button>
                 </div>
 
                 <div className="modal-body">
@@ -318,7 +371,11 @@ export default function EditCourse({ courseId }) {
                 </div>
 
                 <div className="modal-footer">
-                  <button type="button" className="btn btn-secondary" onClick={() => setShowModal(false)}>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={() => setShowModal(false)}
+                  >
                     ✖ Close
                   </button>
                   <button type="submit" className="btn btn-primary">
@@ -326,6 +383,49 @@ export default function EditCourse({ courseId }) {
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ===== Confirm Delete Modal ===== */}
+      {showConfirm && (
+        <div
+          className="modal fade show d-block"
+          tabIndex="-1"
+          style={{ backgroundColor: "rgba(0,0,0,0.5)" }}
+        >
+          <div className="modal-dialog modal-dialog-centered">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">⚠ Confirm Delete</h5>
+                <button
+                  type="button"
+                  className="btn-close"
+                  onClick={() => setShowConfirm(false)}
+                ></button>
+              </div>
+              <div className="modal-body">
+                {deleteTarget?.type === "course"
+                  ? "Are you sure you want to delete this course? All assignments will also be deleted."
+                  : "Are you sure you want to delete this assignment?"}
+              </div>
+              <div className="modal-footer">
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => setShowConfirm(false)}
+                >
+                  ✖ Cancel
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-danger"
+                  onClick={handleConfirmDelete}
+                >
+                  🗑 Delete
+                </button>
+              </div>
             </div>
           </div>
         </div>

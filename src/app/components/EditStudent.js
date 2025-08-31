@@ -16,13 +16,16 @@ export default function StudentEdit({ studentId }) {
   const [error, setError] = useState("");
   const [activeTab, setActiveTab] = useState("profile");
 
-  // Modal state
+  // Assignment modal
   const [showAssignmentModal, setShowAssignmentModal] = useState(false);
   const [assignments, setAssignments] = useState([]);
   const [selectedAssignment, setSelectedAssignment] = useState("");
   const [submittedAt, setSubmittedAt] = useState("");
   const [grade, setGrade] = useState("");
   const [studentSubmissions, setStudentSubmissions] = useState([]);
+
+  // Confirm delete modal
+  const [showConfirm, setShowConfirm] = useState(false);
 
   const router = useRouter();
 
@@ -32,7 +35,7 @@ export default function StudentEdit({ studentId }) {
         const cookies = parseCookies();
         const token = cookies.auth_token;
 
-        // Fetch student data
+        // Fetch student
         const studentRes = await axios.get(
           `http://127.0.0.1:8000/api/student/${studentId}`,
           { headers: { Authorization: `Bearer ${token}` } }
@@ -46,13 +49,14 @@ export default function StudentEdit({ studentId }) {
         setStudentSubmissions(student.submissions || []);
         setSelectedCourses(student.courses.map((c) => c.id));
 
-        // Fetch all courses from system
+        // Fetch courses
         const coursesRes = await axios.get(`http://127.0.0.1:8000/api/course`, {
           headers: { Authorization: `Bearer ${token}` },
         });
+
         const allCourses = coursesRes.data.data;
 
-        // Merge assignments from student courses into all courses
+        // Merge with student's courses assignments
         const mergedCourses = allCourses.map((course) => {
           const studentCourse = student.courses.find((c) => c.id === course.id);
           return {
@@ -122,6 +126,25 @@ export default function StudentEdit({ studentId }) {
     }
   };
 
+  // Confirm delete action
+  const handleConfirmDelete = async () => {
+    try {
+      const cookies = parseCookies();
+      const token = cookies.auth_token;
+
+      await axios.delete(`http://127.0.0.1:8000/api/student/${studentId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      router.push("/dashboard");
+    } catch (err) {
+      console.error("Error deleting student:", err.response?.data || err);
+      setError("Failed to delete student.");
+    } finally {
+      setShowConfirm(false);
+    }
+  };
+
   return (
     <div className="container mt-4">
       {/* Header */}
@@ -146,7 +169,7 @@ export default function StudentEdit({ studentId }) {
           <button
             type="button"
             className="btn btn-danger"
-            onClick={() => alert("Delete Assignment clicked!")}
+            onClick={() => setShowConfirm(true)}
           >
             🗑 Delete
           </button>
@@ -161,6 +184,48 @@ export default function StudentEdit({ studentId }) {
       </div>
 
       {error && <p className="text-danger">{error}</p>}
+
+      {/* Confirm Delete Modal */}
+      {showConfirm && (
+        <div
+          className="modal fade show d-block"
+          tabIndex="-1"
+          style={{ backgroundColor: "rgba(0,0,0,0.5)" }}
+        >
+          <div className="modal-dialog modal-dialog-centered">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">⚠ Confirm Delete</h5>
+                <button
+                  type="button"
+                  className="btn-close"
+                  onClick={() => setShowConfirm(false)}
+                ></button>
+              </div>
+              <div className="modal-body">
+                Are you sure you want to delete this student? All related
+                submissions will also be removed.
+              </div>
+              <div className="modal-footer">
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => setShowConfirm(false)}
+                >
+                  ✖ Cancel
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-danger"
+                  onClick={handleConfirmDelete}
+                >
+                  🗑 Delete
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Tabs */}
       <ul className="nav nav-pills mb-3">
@@ -345,7 +410,7 @@ export default function StudentEdit({ studentId }) {
         </div>
       )}
 
-      {/* Submit Assignment Modal */}
+      {/* Assignment Modal */}
       {showAssignmentModal && (
         <div className="modal show d-block" tabIndex="-1">
           <div className="modal-dialog">
@@ -375,7 +440,7 @@ export default function StudentEdit({ studentId }) {
                       { headers: { Authorization: `Bearer ${token}` } }
                     );
 
-                    alert("Grade submitted successfully!");
+                    // refresh submissions silently
                     setShowAssignmentModal(false);
                     setSelectedAssignment("");
                     setGrade("");
@@ -404,7 +469,7 @@ export default function StudentEdit({ studentId }) {
                       onChange={(e) => {
                         setSelectedAssignment(e.target.value);
                         const assignment = assignments.find(
-                          (a) => a.id === e.target.value
+                          (a) => String(a.id) === e.target.value
                         );
                         setSubmittedAt(
                           assignment?.submitted_at
@@ -456,10 +521,10 @@ export default function StudentEdit({ studentId }) {
                     className="btn btn-secondary"
                     onClick={() => setShowAssignmentModal(false)}
                   >
-                    Close
+                    ✖ Cancel
                   </button>
                   <button type="submit" className="btn btn-primary">
-                    Submit Grade
+                    ✅ Submit Grade
                   </button>
                 </div>
               </form>
