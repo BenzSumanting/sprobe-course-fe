@@ -1,7 +1,6 @@
 "use client";
 import { useState } from "react";
-import axios from "axios";
-import { parseCookies } from "nookies";
+import { api } from "../utils/api"; // Axios instance with baseURL + auth header
 import { useRouter } from "next/navigation";
 
 export default function AddCourse({ onCourseAdded }) {
@@ -13,13 +12,13 @@ export default function AddCourse({ onCourseAdded }) {
 
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
-    setError(""); // clear error when typing
+    setError("");
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    // simple validation
+    // Validation
     if (form.title.trim().length < 3) {
       setError("Title must be at least 3 characters.");
       return;
@@ -34,25 +33,17 @@ export default function AddCourse({ onCourseAdded }) {
     setSuccess("");
 
     try {
-      const cookies = parseCookies();
-      const token = cookies.auth_token;
+      const res = await api().post("/course", form); // use Axios instance
+      setSuccess("Course added successfully!");
 
-      const res = await axios.post(
-        "http://127.0.0.1:8000/api/course",
-        form,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-
-      setSuccess("✅ Course added successfully!");
       if (onCourseAdded) onCourseAdded(res.data.data);
 
       // Reset form
       setForm({ title: "", description: "", credits: "" });
 
-      // Redirect after short delay
       setTimeout(() => router.push("/dashboard"), 1200);
     } catch (err) {
-      console.error("❌ Error adding course:", err.response?.data || err.message);
+      console.error("Error adding course:", err.response?.data || err.message);
       setError(err.response?.data?.message || "Failed to add course.");
     } finally {
       setLoading(false);
@@ -61,7 +52,7 @@ export default function AddCourse({ onCourseAdded }) {
 
   return (
     <div className="container mt-4">
-      <h3 className="mb-3">➕ Add New Course</h3>
+      <h3 className="mb-3">Add New Course</h3>
 
       {error && <div className="alert alert-danger">{error}</div>}
       {success && <div className="alert alert-success">{success}</div>}
@@ -85,12 +76,12 @@ export default function AddCourse({ onCourseAdded }) {
           <textarea
             name="description"
             className="form-control"
-            rows="3"
+            rows={3}
             value={form.description}
             onChange={handleChange}
             disabled={loading}
             required
-          ></textarea>
+          />
         </div>
 
         <div className="mb-3">
@@ -99,7 +90,7 @@ export default function AddCourse({ onCourseAdded }) {
             type="number"
             name="credits"
             className="form-control"
-            min="1"
+            min={1}
             value={form.credits}
             onChange={handleChange}
             disabled={loading}

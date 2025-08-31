@@ -21,8 +21,6 @@ export default function LoginPage() {
       const token = res.data.data.access_token;
       const user = res.data.data.user;
 
-      console.log(user);
-
       if (token) {
         setCookie("auth_token", token, {
           maxAge: 60 * 60 * 24,

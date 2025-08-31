@@ -1,10 +1,13 @@
 "use client";
 import { useState, useEffect } from "react";
-import axios from "axios";
-import { parseCookies } from "nookies";
+import { api } from "../utils/api";
 import { useRouter } from "next/navigation";
 
-export default function AddStudent({ onStudentAdded, onClose, alreadyAddedCourses = [] }) {
+export default function AddStudent({
+  onStudentAdded,
+  onClose,
+  alreadyAddedCourses = [],
+}) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [age, setAge] = useState("");
@@ -15,21 +18,13 @@ export default function AddStudent({ onStudentAdded, onClose, alreadyAddedCourse
   const [error, setError] = useState("");
   const router = useRouter();
 
-  // Fetch available courses
   useEffect(() => {
     const fetchCourses = async () => {
       try {
-        const cookies = parseCookies();
-        const token = cookies.auth_token;
-
-        const res = await axios.get("http://127.0.0.1:8000/api/course", {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-
+        const res = await api().get("/course");
         const filtered = res.data.data.filter(
           (course) => !alreadyAddedCourses.includes(course.id)
         );
-
         setCourses(filtered);
       } catch (err) {
         console.error("Error fetching courses:", err.response?.data || err);
@@ -43,13 +38,11 @@ export default function AddStudent({ onStudentAdded, onClose, alreadyAddedCourse
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (loading) return;
+
     setLoading(true);
     setError("");
 
     try {
-      const cookies = parseCookies();
-      const token = cookies.auth_token;
-
       const formData = new FormData();
       formData.append("name", name);
       formData.append("email", email);
@@ -59,58 +52,41 @@ export default function AddStudent({ onStudentAdded, onClose, alreadyAddedCourse
         formData.append("courses[]", String(courseId))
       );
 
-      if (image) {
-        formData.append("image", image);
-      }
+      if (image) formData.append("image", image);
 
-      const res = await axios.post(
-        "http://127.0.0.1:8000/api/student",
-        formData,
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        }
-      );
+      const res = await api().post("/student", formData);
 
       if (onStudentAdded) onStudentAdded(res.data);
 
-      // Reset form
       setName("");
       setEmail("");
       setAge("");
       setSelectedCourses([]);
       setImage(null);
 
-      // Close or redirect
-      if (onClose) {
-        onClose();
-      } else {
-        router.push("/dashboard");
-      }
+      if (onClose) onClose();
+      else router.push("/dashboard");
     } catch (err) {
-      console.error("❌ Error adding student:", err.response?.data || err.message);
-      setError(
-        err.response?.data?.message ||
-          "Failed to add student. Check console for details."
+      console.error(
+        "Error adding student:",
+        err.response?.data || err.message
       );
+      setError(err.response?.data?.message || "Failed to add student.");
     } finally {
       setLoading(false);
     }
   };
 
-  // Cancel button handler
   const handleCancel = () => {
-    if (onClose) {
-      onClose();
-    } else {
-      router.push("/dashboard");
-    }
+    if (onClose) onClose();
+    else router.push("/dashboard");
   };
 
   return (
     <div className="container mt-4">
       <div className="card shadow-sm">
         <div className="card-header d-flex justify-content-between align-items-center">
-          <h5 className="mb-0">➕ Add Student</h5>
+          <h5 className="mb-0">Add Student</h5>
         </div>
         <div className="card-body">
           {error && <p className="text-danger">{error}</p>}
@@ -151,7 +127,6 @@ export default function AddStudent({ onStudentAdded, onClose, alreadyAddedCourse
               />
             </div>
 
-            {/* Profile Image */}
             <div className="mb-3">
               <label className="form-label">Profile Image</label>
               <input
@@ -173,7 +148,6 @@ export default function AddStudent({ onStudentAdded, onClose, alreadyAddedCourse
               )}
             </div>
 
-            {/* Courses */}
             <div className="mb-3">
               <label className="form-label">Courses</label>
               <div
@@ -213,7 +187,6 @@ export default function AddStudent({ onStudentAdded, onClose, alreadyAddedCourse
               </div>
             </div>
 
-            {/* Footer Buttons */}
             <div className="d-flex justify-content-end gap-2">
               <button
                 type="button"
@@ -223,7 +196,11 @@ export default function AddStudent({ onStudentAdded, onClose, alreadyAddedCourse
               >
                 ✖ Cancel
               </button>
-              <button type="submit" className="btn btn-primary" disabled={loading}>
+              <button
+                type="submit"
+                className="btn btn-primary"
+                disabled={loading}
+              >
                 {loading ? "⏳ Saving..." : "💾 Add Student"}
               </button>
             </div>
