@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import axios from "axios";
-import { parseCookies } from "nookies";
+import { parseCookies, destroyCookie } from "nookies";
 import { useRouter } from "next/navigation";
 
 export default function Dashboard() {
@@ -9,8 +9,25 @@ export default function Dashboard() {
   const [students, setStudents] = useState([]);
   const [courses, setCourses] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [user, setUser] = useState(null);
 
   const router = useRouter();
+
+  // Load current user from cookie
+  useEffect(() => {
+    const cookies = parseCookies();
+    if (cookies.user) {
+      try {
+        const parsedUser = cookies.user;
+        setUser(parsedUser);
+      } catch (err) {
+        console.error("Error parsing user cookie", err);
+        router.push("/login"); // redirect if cookie invalid
+      }
+    } else {
+      router.push("/login"); // redirect if no user cookie
+    }
+  }, []);
 
   // Fetch data when tab changes
   useEffect(() => {
@@ -19,6 +36,8 @@ export default function Dashboard() {
       try {
         const cookies = parseCookies();
         const token = cookies.auth_token;
+
+        if (!token) return;
 
         if (activeTab === "students") {
           const res = await axios.get("http://127.0.0.1:8000/api/student", {
@@ -57,8 +76,54 @@ export default function Dashboard() {
     }
   };
 
+  const handleLogout = async () => {
+    try {
+      const cookies = parseCookies();
+      const token = cookies.auth_token;
+
+      if (token) {
+        await axios.post(
+          "http://127.0.0.1:8000/api/logout",
+          null, // send null instead of {}
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json", // important
+            },
+          }
+        );
+      }
+
+      // Clear cookies
+      destroyCookie(null, "auth_token");
+      destroyCookie(null, "user");
+
+      // Redirect to login
+      router.push("/login");
+    } catch (err) {
+      console.error("Logout failed:", err);
+
+      // Still clear cookies and redirect
+      destroyCookie(null, "auth_token");
+      destroyCookie(null, "user");
+      router.push("/login");
+    }
+  };
+
   return (
     <div className="container mt-4">
+      {/* User Profile + Logout */}
+      {user && (
+        <div className="d-flex justify-content-between align-items-center mb-4 p-3 bg-light rounded shadow-sm">
+          <div>
+            <strong>Logged in as:</strong> {user}
+          </div>
+          <button className="btn btn-danger" onClick={handleLogout}>
+            Logout
+          </button>
+        </div>
+      )}
+
       {/* Nav Tabs */}
       <ul className="nav nav-tabs mb-4">
         <li className="nav-item">
@@ -91,7 +156,7 @@ export default function Dashboard() {
                 className="btn btn-success px-4"
                 onClick={() => handleAdd("student")}
               >
-                ➕ Add Student
+                Add
               </button>
             </div>
 
@@ -135,7 +200,7 @@ export default function Dashboard() {
                 className="btn btn-success px-4"
                 onClick={() => handleAdd("course")}
               >
-                ➕ Add Course
+                 Add
               </button>
             </div>
 
